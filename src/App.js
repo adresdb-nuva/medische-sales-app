@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
 function App() {
-  const [Hospitals, setHospitals] = useState([]);
-  const [Surgeons, setSurgeons] = useState([]);
-  const [Products, setProducts] = useState([]);
+  const [hospitals, setHospitals] = useState([]);
+  const [surgeons, setSurgeons] = useState([]);
+  const [products, setProducts] = useState([]);
   const [selectedHospital, setSelectedHospital] = useState('');
   const [selectedSurgeon, setSelectedSurgeon] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -18,16 +18,16 @@ function App() {
 
   async function fetchInitialData() {
     try {
-      // Correctie: Gebruik kleine letters voor de tabelnamen
+      // CORRECTIE: Tabelnamen met hoofdletters zoals in jouw Supabase
       const { data: hosp, error: hErr } = await supabase.from('Hospitals').select('*');
       const { data: surg, error: sErr } = await supabase.from('Surgeons').select('*');
       const { data: prod, error: pErr } = await supabase.from('Products').select('*');
       
       if (hErr || sErr || pErr) {
         console.error("Fetch error:", hErr || sErr || pErr);
-        setErrorMessage("Kan data niet laden. Controleer of de tabelnamen in Supabase exact 'hospitals', 'surgeons' en 'products' zijn (zonder hoofdletters).");
+        setErrorMessage("Controleer of de tabellen 'Hospitals', 'Surgeons' en 'Products' data bevatten.");
       } else {
-        setErrorMessage(''); // Wis foutmelding als het lukt
+        setErrorMessage('');
       }
 
       setHospitals(hosp || []);
@@ -46,9 +46,9 @@ function App() {
 
     const product = products.find(p => p.id.toString() === selectedProduct.toString());
     
-    // A. Sla de verkoop op (tabelnaam 'sales')
+    // Opslaan in de tabel 'Sales' (Hoofdletter S)
     const { data: sale, error: saleError } = await supabase
-      .from('sales') 
+      .from('Sales') 
       .insert([{ 
         hospital_id: parseInt(selectedHospital), 
         surgeon_id: parseInt(selectedSurgeon),
@@ -61,9 +61,9 @@ function App() {
       return;
     }
 
-    // B. Voeg product toe (tabelnaam 'sale_items')
+    // Opslaan in de tabel 'Sale_Items' (Hoofdletters S en I)
     const { error: itemError } = await supabase
-      .from('sale_items')
+      .from('Sale_Items')
       .insert([{
         sale_id: sale[0].id,
         product_id: product.id,
@@ -73,8 +73,6 @@ function App() {
 
     if (!itemError) {
       alert("Operatie succesvol geregistreerd!");
-      // Reset formulier
-      setSelectedProduct('');
       setQuantity(1);
     } else {
       alert("Fout bij opslaan product: " + itemError.message);
@@ -88,15 +86,15 @@ function App() {
           <h1 className="text-3xl font-bold text-gray-800">Medische Sales Dashboard</h1>
           {errorMessage && (
             <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-200">
-              <strong>Status:</strong> {errorMessage}
+              {errorMessage}
             </div>
           )}
         </header>
         
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-          <h2 className="text-xl font-semibold mb-6 text-blue-700">Nieuwe Registratie</h2>
+          <h2 className="text-xl font-semibold mb-6 text-blue-700 font-sans">Nieuwe Registratie</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-sans">
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold mb-1 text-gray-600">Operatiedatum</label>
               <input 
