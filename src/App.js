@@ -5,7 +5,7 @@ function App() {
   const [hospitals, setHospitals] = useState([]);
   const [surgeons, setSurgeons] = useState([]);
   const [products, setProducts] = useState([]);
-  const [salesHistory, setSalesHistory] = useState([]); // Nieuw: Voor het overzicht
+  const [salesHistory, setSalesHistory] = useState([]);
   
   const [selectedHospital, setSelectedHospital] = useState('');
   const [selectedSurgeon, setSelectedSurgeon] = useState('');
@@ -14,7 +14,7 @@ function App() {
   const [cart, setCart] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [errorMessage, setErrorMessage] = useState('');
+  const [selectedSaleDetails, setSelectedSaleDetails] = useState(null); // Voor het detailvenster
 
   useEffect(() => {
     fetchInitialData();
@@ -30,8 +30,8 @@ function App() {
     setProducts(prod || []);
   }
 
-  // NIEUW: Haal de geschiedenis op
   async function fetchSalesHistory() {
+    // We halen nu ook de productnaam op via de relatie met Products
     const { data, error } = await supabase
       .from('Sales')
       .select(`
@@ -39,7 +39,11 @@ function App() {
         surgery_date, 
         Hospitals (name), 
         Surgeons (name),
-        Sale_Items (quantity, unit_price)
+        Sale_Items (
+          quantity, 
+          unit_price,
+          Products (name)
+        )
       `)
       .order('surgery_date', { ascending: false });
 
@@ -88,7 +92,7 @@ function App() {
     if (!itemError) {
       alert("Geregistreerd!");
       setCart([]);
-      fetchSalesHistory(); // Ververs de lijst direct
+      fetchSalesHistory();
     }
   }
 
@@ -100,7 +104,7 @@ function App() {
         {/* INPUT SECTIE */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
           <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm tracking-wider">1. Basis Info</h2>
+            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm">1. Basis Info</h2>
             <div className="space-y-4">
               <input type="date" className="w-full p-2 border rounded" value={surgeryDate} onChange={(e) => setSurgeryDate(e.target.value)} />
               <select className="w-full p-2 border rounded" value={selectedHospital} onChange={(e) => setSelectedHospital(e.target.value)}>
@@ -115,30 +119,36 @@ function App() {
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm tracking-wider">2. Producten</h2>
+            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm">2. Producten</h2>
             <div className="space-y-4">
               <select className="w-full p-2 border rounded" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
                 <option value="">Kies implantaat...</option>
                 {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
               <input type="number" className="w-full p-2 border rounded" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-              <button onClick={addToCart} className="w-full bg-green-600 text-white py-2 rounded font-bold">+ Toevoegen</button>
+              <button onClick={addToCart} className="w-full bg-green-600 text-white py-2 rounded font-bold hover:bg-green-700">+ Toevoegen</button>
             </div>
           </div>
 
           <div className="bg-white p-6 rounded-xl shadow-sm border flex flex-col">
-            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm tracking-wider">3. Mandje</h2>
+            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm">3. Ingreep Mandje</h2>
             <div className="flex-grow text-sm mb-4">
-              {cart.map((item, i) => <div key={i} className="border-b py-1 flex justify-between"><span>{item.quantity}x {item.name}</span></div>)}
+              {cart.map((item, i) => (
+                <div key={i} className="border-b py-1 flex justify-between">
+                  <span>{item.quantity}x {item.name}</span>
+                  <span className="text-gray-400">€{(item.price * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
-            <button onClick={handleSaveSale} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">OPSLAAN</button>
+            <button onClick={handleSaveSale} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg">INGREEP OPSLAAN</button>
           </div>
         </div>
 
-        {/* OVERZICHT SECTIE (Historiek) */}
+        {/* HISTORIEK SECTIE */}
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <div className="p-6 border-b bg-gray-50">
-            <h2 className="text-xl font-bold">Historiek Ingrepen</h2>
+          <div className="p-6 border-b bg-gray-50 flex justify-between items-center">
+            <h2 className="text-xl font-bold text-gray-800">Historiek Ingrepen</h2>
+            <span className="text-xs text-gray-500">Klik op een rij voor details</span>
           </div>
           <table className="w-full text-left border-collapse">
             <thead>
@@ -146,7 +156,6 @@ function App() {
                 <th className="p-4">Datum</th>
                 <th className="p-4">Ziekenhuis</th>
                 <th className="p-4">Chirurg</th>
-                <th className="p-4">Producten</th>
                 <th className="p-4">Totaal</th>
               </tr>
             </thead>
@@ -154,13 +163,10 @@ function App() {
               {salesHistory.map((sale) => {
                 const total = sale.Sale_Items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
                 return (
-                  <tr key={sale.id} className="hover:bg-gray-50">
+                  <tr key={sale.id} onClick={() => setSelectedSaleDetails(sale)} className="cursor-pointer hover:bg-blue-50 transition">
                     <td className="p-4 font-medium">{sale.surgery_date}</td>
                     <td className="p-4">{sale.Hospitals?.name}</td>
                     <td className="p-4">{sale.Surgeons?.name}</td>
-                    <td className="p-4 text-gray-500">
-                      {sale.Sale_Items.length} item(s)
-                    </td>
                     <td className="p-4 font-bold text-blue-600">€{total.toFixed(2)}</td>
                   </tr>
                 );
@@ -168,6 +174,44 @@ function App() {
             </tbody>
           </table>
         </div>
+
+        {/* DETAIL MODAL (Venster dat openspringt) */}
+        {selectedSaleDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl">
+              <div className="flex justify-between items-start mb-4 border-b pb-4">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Details Operatie</h3>
+                  <p className="text-sm text-gray-500">{selectedSaleDetails.surgery_date} - {selectedSaleDetails.Hospitals?.name}</p>
+                </div>
+                <button onClick={() => setSelectedSaleDetails(null)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+              </div>
+              
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Chirurg: <span className="font-normal">{selectedSaleDetails.Surgeons?.name}</span></p>
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h4 className="text-xs font-bold uppercase text-gray-400 mb-2">Gebruikte Implantaat Producten</h4>
+                  <ul className="space-y-2">
+                    {selectedSaleDetails.Sale_Items.map((item, idx) => (
+                      <li key={idx} className="flex justify-between text-sm border-b border-gray-200 pb-1">
+                        <span>{item.quantity}x {item.Products?.name}</span>
+                        <span className="font-mono text-gray-600">€{(item.quantity * item.unit_price).toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="flex justify-between mt-4 pt-2 border-t border-gray-300 font-bold">
+                    <span>Totaalbedrag</span>
+                    <span className="text-blue-700 text-lg">
+                      €{selectedSaleDetails.Sale_Items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <button onClick={() => setSelectedSaleDetails(null)} className="mt-6 w-full bg-gray-800 text-white py-3 rounded-xl font-bold">Sluiten</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
