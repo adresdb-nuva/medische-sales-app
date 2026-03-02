@@ -9,7 +9,7 @@ function App() {
   const [selectedSurgeon, setSelectedSurgeon] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
-  const [surgeryDate, setSurgeryDate] = useState(new Date().toISOString().split('T')[0]); // Nieuw: Datumveld
+  const [surgeryDate, setSurgeryDate] = useState(new Date().toISOString().split('T')[0]);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -18,13 +18,16 @@ function App() {
 
   async function fetchInitialData() {
     try {
-      // We proberen de data op te halen. Let op de hoofdletters!
-      const { data: hosp, error: hErr } = await supabase.from('Hospitals').select('*');
-      const { data: surg, error: sErr } = await supabase.from('Surgeons').select('*');
-      const { data: prod, error: pErr } = await supabase.from('Products').select('*');
+      // Correctie: Gebruik kleine letters voor de tabelnamen
+      const { data: hosp, error: hErr } = await supabase.from('hospitals').select('*');
+      const { data: surg, error: sErr } = await supabase.from('surgeons').select('*');
+      const { data: prod, error: pErr } = await supabase.from('products').select('*');
       
       if (hErr || sErr || pErr) {
-        setErrorMessage("Kan data niet laden. Controleer of de tabelnamen in Supabase exact 'Hospitals', 'Surgeons' en 'Products' zijn.");
+        console.error("Fetch error:", hErr || sErr || pErr);
+        setErrorMessage("Kan data niet laden. Controleer of de tabelnamen in Supabase exact 'hospitals', 'surgeons' en 'products' zijn (zonder hoofdletters).");
+      } else {
+        setErrorMessage(''); // Wis foutmelding als het lukt
       }
 
       setHospitals(hosp || []);
@@ -43,24 +46,24 @@ function App() {
 
     const product = products.find(p => p.id.toString() === selectedProduct.toString());
     
-    // A. Sla de verkoop op met de gekozen datum
+    // A. Sla de verkoop op (tabelnaam 'sales')
     const { data: sale, error: saleError } = await supabase
-      .from('Sales') 
+      .from('sales') 
       .insert([{ 
         hospital_id: parseInt(selectedHospital), 
         surgeon_id: parseInt(selectedSurgeon),
-        surgery_date: surgeryDate // Gebruikt de gekozen datum
+        surgery_date: surgeryDate
       }])
       .select();
 
     if (saleError) {
-      alert("Fout bij opslaan: " + saleError.message);
+      alert("Fout bij opslaan verkoop: " + saleError.message);
       return;
     }
 
-    // B. Voeg product toe
+    // B. Voeg product toe (tabelnaam 'sale_items')
     const { error: itemError } = await supabase
-      .from('Sale_Items')
+      .from('sale_items')
       .insert([{
         sale_id: sale[0].id,
         product_id: product.id,
@@ -70,6 +73,11 @@ function App() {
 
     if (!itemError) {
       alert("Operatie succesvol geregistreerd!");
+      // Reset formulier
+      setSelectedProduct('');
+      setQuantity(1);
+    } else {
+      alert("Fout bij opslaan product: " + itemError.message);
     }
   }
 
@@ -77,10 +85,10 @@ function App() {
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-900">
       <div className="max-w-4xl mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold">Medische Sales Dashboard</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Medische Sales Dashboard</h1>
           {errorMessage && (
             <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-200">
-              <strong>Let op:</strong> {errorMessage}
+              <strong>Status:</strong> {errorMessage}
             </div>
           )}
         </header>
@@ -89,9 +97,8 @@ function App() {
           <h2 className="text-xl font-semibold mb-6 text-blue-700">Nieuwe Registratie</h2>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Datumveld bovenaan toegevoegd */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-semibold mb-1">Operatiedatum</label>
+              <label className="block text-sm font-semibold mb-1 text-gray-600">Operatiedatum</label>
               <input 
                 type="date" 
                 className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
@@ -101,7 +108,7 @@ function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Ziekenhuis</label>
+              <label className="block text-sm font-semibold mb-1 text-gray-600">Ziekenhuis</label>
               <select className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-blue-500" 
                 value={selectedHospital} onChange={(e) => setSelectedHospital(e.target.value)}>
                 <option value="">-- Kies ziekenhuis --</option>
@@ -110,7 +117,7 @@ function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Chirurg</label>
+              <label className="block text-sm font-semibold mb-1 text-gray-600">Chirurg</label>
               <select className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-blue-500" 
                 value={selectedSurgeon} onChange={(e) => setSelectedSurgeon(e.target.value)}>
                 <option value="">-- Kies chirurg --</option>
@@ -119,7 +126,7 @@ function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Product</label>
+              <label className="block text-sm font-semibold mb-1 text-gray-600">Product</label>
               <select className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-blue-500" 
                 value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
                 <option value="">-- Kies product --</option>
@@ -128,12 +135,12 @@ function App() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-1">Aantal</label>
+              <label className="block text-sm font-semibold mb-1 text-gray-600">Aantal</label>
               <input type="number" className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:ring-2 focus:ring-blue-500" 
                 value={quantity} onChange={(e) => setQuantity(e.target.value)} />
             </div>
 
-            <button onClick={handleSaveSale} className="md:col-span-2 bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 shadow-lg">
+            <button onClick={handleSaveSale} className="md:col-span-2 bg-blue-600 text-white font-bold py-4 rounded-xl hover:bg-blue-700 shadow-lg transition duration-200">
               Sla Operatie Gegevens Op
             </button>
           </div>
