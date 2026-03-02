@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
 function App() {
-  const [hospitals, setHospitals] = useState([]);
-  const [surgeons, setSurgeons] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [Hospitals, setHospitals] = useState([]);
+  const [Surgeons, setSurgeons] = useState([]);
+  const [Products, setProducts] = useState([]);
   const [selectedHospital, setSelectedHospital] = useState('');
   const [selectedSurgeon, setSelectedSurgeon] = useState('');
   const [selectedProduct, setSelectedProduct] = useState('');
@@ -19,9 +19,9 @@ function App() {
   async function fetchInitialData() {
     try {
       // Correctie: Gebruik kleine letters voor de tabelnamen
-      const { data: hosp, error: hErr } = await supabase.from('hospitals').select('*');
-      const { data: surg, error: sErr } = await supabase.from('surgeons').select('*');
-      const { data: prod, error: pErr } = await supabase.from('products').select('*');
+      const { data: hosp, error: hErr } = await supabase.from('Hospitals').select('*');
+      const { data: surg, error: sErr } = await supabase.from('Surgeons').select('*');
+      const { data: prod, error: pErr } = await supabase.from('Products').select('*');
       
       if (hErr || sErr || pErr) {
         console.error("Fetch error:", hErr || sErr || pErr);
