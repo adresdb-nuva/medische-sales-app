@@ -18,16 +18,15 @@ function App() {
 
   async function fetchInitialData() {
     try {
-      // CORRECTIE: Tabelnamen met hoofdletters zoals in jouw Supabase
+      // ESSENTIEEL: Hoofdletters gebruiken om de 404 te stoppen
       const { data: hosp, error: hErr } = await supabase.from('Hospitals').select('*');
       const { data: surg, error: sErr } = await supabase.from('Surgeons').select('*');
       const { data: prod, error: pErr } = await supabase.from('Products').select('*');
       
       if (hErr || sErr || pErr) {
-        console.error("Fetch error:", hErr || sErr || pErr);
-        setErrorMessage("Controleer of de tabellen 'Hospitals', 'Surgeons' en 'Products' data bevatten.");
+        setErrorMessage("Database fout: " + (hErr?.message || sErr?.message || pErr?.message));
       } else {
-        setErrorMessage('');
+        setErrorMessage(''); // Alles OK!
       }
 
       setHospitals(hosp || []);
@@ -40,13 +39,13 @@ function App() {
 
   async function handleSaveSale() {
     if (!selectedHospital || !selectedSurgeon || !selectedProduct || !surgeryDate) {
-      alert("Vul alle velden in, inclusief de datum.");
+      alert("Vul alle velden in.");
       return;
     }
 
     const product = products.find(p => p.id.toString() === selectedProduct.toString());
     
-    // Opslaan in de tabel 'Sales' (Hoofdletter S)
+    // Opslaan in 'Sales' (Hoofdletter)
     const { data: sale, error: saleError } = await supabase
       .from('Sales') 
       .insert([{ 
@@ -57,11 +56,11 @@ function App() {
       .select();
 
     if (saleError) {
-      alert("Fout bij opslaan verkoop: " + saleError.message);
+      alert("Fout bij Sales: " + saleError.message);
       return;
     }
 
-    // Opslaan in de tabel 'Sale_Items' (Hoofdletters S en I)
+    // Opslaan in 'Sale_Items' (Hoofdletters)
     const { error: itemError } = await supabase
       .from('Sale_Items')
       .insert([{
@@ -72,10 +71,10 @@ function App() {
       }]);
 
     if (!itemError) {
-      alert("Operatie succesvol geregistreerd!");
+      alert("Registratie succesvol!");
       setQuantity(1);
     } else {
-      alert("Fout bij opslaan product: " + itemError.message);
+      alert("Fout bij items: " + itemError.message);
     }
   }
 
@@ -86,15 +85,15 @@ function App() {
           <h1 className="text-3xl font-bold text-gray-800">Medische Sales Dashboard</h1>
           {errorMessage && (
             <div className="mt-4 p-4 bg-red-100 text-red-700 rounded-lg border border-red-200">
-              {errorMessage}
+              <strong>Status:</strong> {errorMessage}
             </div>
           )}
         </header>
         
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-          <h2 className="text-xl font-semibold mb-6 text-blue-700 font-sans">Nieuwe Registratie</h2>
+          <h2 className="text-xl font-semibold mb-6 text-blue-700">Nieuwe Registratie</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 font-sans">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="md:col-span-2">
               <label className="block text-sm font-semibold mb-1 text-gray-600">Operatiedatum</label>
               <input 
