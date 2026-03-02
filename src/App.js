@@ -5,60 +5,66 @@ function App() {
   const [hospitals, setHospitals] = useState([]);
   const [surgeons, setSurgeons] = useState([]);
   const [products, setProducts] = useState([]);
+  const [salesHistory, setSalesHistory] = useState([]); // Nieuw: Voor het overzicht
   
   const [selectedHospital, setSelectedHospital] = useState('');
   const [selectedSurgeon, setSelectedSurgeon] = useState('');
   const [surgeryDate, setSurgeryDate] = useState(new Date().toISOString().split('T')[0]);
   
-  // States voor het "winkelmandje"
   const [cart, setCart] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState(1);
-  
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
     fetchInitialData();
+    fetchSalesHistory();
   }, []);
 
   async function fetchInitialData() {
-    try {
-      const { data: hosp } = await supabase.from('Hospitals').select('*');
-      const { data: surg } = await supabase.from('Surgeons').select('*');
-      const { data: prod } = await supabase.from('Products').select('*');
-      setHospitals(hosp || []);
-      setSurgeons(surg || []);
-      setProducts(prod || []);
-    } catch (error) {
-      setErrorMessage("Fout bij laden: " + error.message);
-    }
+    const { data: hosp } = await supabase.from('Hospitals').select('*');
+    const { data: surg } = await supabase.from('Surgeons').select('*');
+    const { data: prod } = await supabase.from('Products').select('*');
+    setHospitals(hosp || []);
+    setSurgeons(surg || []);
+    setProducts(prod || []);
+  }
+
+  // NIEUW: Haal de geschiedenis op
+  async function fetchSalesHistory() {
+    const { data, error } = await supabase
+      .from('Sales')
+      .select(`
+        id, 
+        surgery_date, 
+        Hospitals (name), 
+        Surgeons (name),
+        Sale_Items (quantity, unit_price)
+      `)
+      .order('surgery_date', { ascending: false });
+
+    if (!error) setSalesHistory(data || []);
   }
 
   const addToCart = () => {
     if (!selectedProduct) return;
     const product = products.find(p => p.id.toString() === selectedProduct);
-    const newItem = {
+    setCart([...cart, {
       product_id: product.id,
       name: product.name,
       price: product.price,
       quantity: parseInt(quantity)
-    };
-    setCart([...cart, newItem]);
-    setSelectedProduct(''); // Reset selectie
+    }]);
+    setSelectedProduct('');
     setQuantity(1);
-  };
-
-  const removeFromCart = (index) => {
-    setCart(cart.filter((_, i) => i !== index));
   };
 
   async function handleSaveSale() {
     if (!selectedHospital || !selectedSurgeon || cart.length === 0) {
-      alert("Zorg dat ziekenhuis, chirurg en minimaal één product zijn ingevuld.");
+      alert("Vul alle velden in.");
       return;
     }
 
-    // 1. Maak de Sale aan
     const { data: sale, error: saleError } = await supabase
       .from('Sales') 
       .insert([{ 
@@ -68,9 +74,8 @@ function App() {
       }])
       .select();
 
-    if (saleError) return alert("Fout bij Sales: " + saleError.message);
+    if (saleError) return alert(saleError.message);
 
-    // 2. Bereid alle producten voor de Sale_Items voor
     const itemsToInsert = cart.map(item => ({
       sale_id: sale[0].id,
       product_id: item.product_id,
@@ -78,92 +83,90 @@ function App() {
       unit_price: item.price
     }));
 
-    // 3. Upload alle items in één keer
-    const { error: itemError } = await supabase
-      .from('Sale_Items')
-      .insert(itemsToInsert);
+    const { error: itemError } = await supabase.from('Sale_Items').insert(itemsToInsert);
 
     if (!itemError) {
-      alert("Volledige ingreep succesvol geregistreerd!");
-      setCart([]); // Leeg mandje
-    } else {
-      alert("Fout bij opslaan items: " + itemError.message);
+      alert("Geregistreerd!");
+      setCart([]);
+      fetchSalesHistory(); // Ververs de lijst direct
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-100 p-4 md:p-8 font-sans">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-extrabold mb-8 text-gray-800">Operatie Registratie</h1>
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">Operatie Dashboard</h1>
         
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* LINKER KOLOM: Basis Gegevens */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-            <h2 className="text-lg font-bold mb-4 text-blue-800 border-b pb-2">1. Ingreep Details</h2>
+        {/* INPUT SECTIE */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-12">
+          <div className="bg-white p-6 rounded-xl shadow-sm border">
+            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm tracking-wider">1. Basis Info</h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Datum</label>
-                <input type="date" className="w-full p-2.5 rounded-lg border bg-gray-50" value={surgeryDate} onChange={(e) => setSurgeryDate(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Ziekenhuis</label>
-                <select className="w-full p-2.5 rounded-lg border bg-gray-50" value={selectedHospital} onChange={(e) => setSelectedHospital(e.target.value)}>
-                  <option value="">Kies...</option>
-                  {hospitals.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Chirurg</label>
-                <select className="w-full p-2.5 rounded-lg border bg-gray-50" value={selectedSurgeon} onChange={(e) => setSelectedSurgeon(e.target.value)}>
-                  <option value="">Kies...</option>
-                  {surgeons.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
+              <input type="date" className="w-full p-2 border rounded" value={surgeryDate} onChange={(e) => setSurgeryDate(e.target.value)} />
+              <select className="w-full p-2 border rounded" value={selectedHospital} onChange={(e) => setSelectedHospital(e.target.value)}>
+                <option value="">Ziekenhuis...</option>
+                {hospitals.map(h => <option key={h.id} value={h.id}>{h.name}</option>)}
+              </select>
+              <select className="w-full p-2 border rounded" value={selectedSurgeon} onChange={(e) => setSelectedSurgeon(e.target.value)}>
+                <option value="">Chirurg...</option>
+                {surgeons.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             </div>
           </div>
 
-          {/* MIDDELSTE KOLOM: Producten Toevoegen */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
-            <h2 className="text-lg font-bold mb-4 text-blue-800 border-b pb-2">2. Implanteer Producten</h2>
+          <div className="bg-white p-6 rounded-xl shadow-sm border">
+            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm tracking-wider">2. Producten</h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Product</label>
-                <select className="w-full p-2.5 rounded-lg border bg-gray-50" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
-                  <option value="">Kies implantaat...</option>
-                  {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold uppercase text-gray-500 mb-1">Aantal</label>
-                <input type="number" min="1" className="w-full p-2.5 rounded-lg border bg-gray-50" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-              </div>
-              <button onClick={addToCart} className="w-full bg-green-600 text-white font-bold py-2.5 rounded-lg hover:bg-green-700 transition">
-                + Voeg toe aan lijst
-              </button>
+              <select className="w-full p-2 border rounded" value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}>
+                <option value="">Kies implantaat...</option>
+                {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+              <input type="number" className="w-full p-2 border rounded" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              <button onClick={addToCart} className="w-full bg-green-600 text-white py-2 rounded font-bold">+ Toevoegen</button>
             </div>
           </div>
 
-          {/* RECHTER KOLOM: Overzicht & Bevestigen */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200 flex flex-col">
-            <h2 className="text-lg font-bold mb-4 text-blue-800 border-b pb-2">3. Overzicht Ingreep</h2>
-            <div className="flex-grow overflow-y-auto max-h-60 mb-4">
-              {cart.length === 0 ? (
-                <p className="text-gray-400 italic text-sm">Nog geen producten toegevoegd...</p>
-              ) : (
-                <ul className="space-y-2">
-                  {cart.map((item, index) => (
-                    <li key={index} className="flex justify-between items-center bg-gray-50 p-2 rounded border text-sm">
-                      <span>{item.quantity}x {item.name}</span>
-                      <button onClick={() => removeFromCart(index)} className="text-red-500 font-bold px-2">✕</button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          <div className="bg-white p-6 rounded-xl shadow-sm border flex flex-col">
+            <h2 className="font-bold mb-4 text-blue-700 uppercase text-sm tracking-wider">3. Mandje</h2>
+            <div className="flex-grow text-sm mb-4">
+              {cart.map((item, i) => <div key={i} className="border-b py-1 flex justify-between"><span>{item.quantity}x {item.name}</span></div>)}
             </div>
-            <button onClick={handleSaveSale} disabled={cart.length === 0} className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition ${cart.length === 0 ? 'bg-gray-300' : 'bg-blue-600 hover:bg-blue-700'}`}>
-              REGISTREER INGREEP
-            </button>
+            <button onClick={handleSaveSale} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">OPSLAAN</button>
           </div>
+        </div>
+
+        {/* OVERZICHT SECTIE (Historiek) */}
+        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+          <div className="p-6 border-b bg-gray-50">
+            <h2 className="text-xl font-bold">Historiek Ingrepen</h2>
+          </div>
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-100 text-xs uppercase text-gray-600">
+                <th className="p-4">Datum</th>
+                <th className="p-4">Ziekenhuis</th>
+                <th className="p-4">Chirurg</th>
+                <th className="p-4">Producten</th>
+                <th className="p-4">Totaal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y text-sm">
+              {salesHistory.map((sale) => {
+                const total = sale.Sale_Items.reduce((acc, item) => acc + (item.quantity * item.unit_price), 0);
+                return (
+                  <tr key={sale.id} className="hover:bg-gray-50">
+                    <td className="p-4 font-medium">{sale.surgery_date}</td>
+                    <td className="p-4">{sale.Hospitals?.name}</td>
+                    <td className="p-4">{sale.Surgeons?.name}</td>
+                    <td className="p-4 text-gray-500">
+                      {sale.Sale_Items.length} item(s)
+                    </td>
+                    <td className="p-4 font-bold text-blue-600">€{total.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
