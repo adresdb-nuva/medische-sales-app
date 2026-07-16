@@ -43,7 +43,7 @@ function App() {
     setSalesHistory(sales.data || []);
   }
 
-  // NIEUW: Verwijder Functie
+  // Verwijder Functie
   async function handleDeleteSale(saleId) {
     const confirmDelete = window.confirm("Weet je zeker dat je deze ingreep wilt verwijderen? Dit kan niet ongedaan worden gemaakt.");
     if (!confirmDelete) return;
@@ -102,13 +102,76 @@ function App() {
     if (error) alert("Fout: " + error.message);
   }
 
+  // Toevoegen aan mandje (voorkomt duplicaten en telt op)
+  const handleAddToCart = () => {
+    if (!selectedProduct) return;
+    const p = products.find(x => x.id.toString() === selectedProduct);
+    if (!p) return;
+
+    const qty = parseInt(quantity) || 1;
+
+    setCart(prevCart => {
+      const existingIndex = prevCart.findIndex(item => item.product_id === p.id);
+      if (existingIndex > -1) {
+        const updatedCart = [...prevCart];
+        updatedCart[existingIndex].quantity += qty;
+        return updatedCart;
+      } else {
+        return [...prevCart, { product_id: p.id, name: p.name, price: p.price, quantity: qty }];
+      }
+    });
+
+    setSelectedProduct('');
+    setQuantity(1);
+  };
+
+  // Veilig opslaan met betere foutafhandeling en handmatige rollback
   async function handleSaveSale() {
-    if (!selectedHospital || !selectedSurgeon || cart.length === 0) return alert("Vul alles in.");
-    const { data: sale, error: saleError } = await supabase.from('Sales').insert([{ hospital_id: parseInt(selectedHospital), surgeon_id: parseInt(selectedSurgeon), surgery_date: surgeryDate }]).select();
-    if (saleError) return alert(saleError.message);
-    const itemsToInsert = cart.map(item => ({ sale_id: sale[0].id, product_id: item.product_id, quantity: item.quantity, unit_price: item.price }));
-    await supabase.from('Sale_Items').insert(itemsToInsert);
-    setCart([]); fetchAllData(); alert("Opgeslagen!");
+    if (!selectedHospital || !selectedSurgeon || cart.length === 0) {
+      return alert("Vul alles in en voeg minimaal één product toe.");
+    }
+
+    try {
+      const { data: sale, error: saleError } = await supabase
+        .from('Sales')
+        .insert([{ 
+          hospital_id: parseInt(selectedHospital), 
+          surgeon_id: parseInt(selectedSurgeon), 
+          surgery_date: surgeryDate 
+        }])
+        .select();
+
+      if (saleError || !sale || sale.length === 0) {
+        throw new Error(saleError?.message || "Kon de ingreep niet aanmaken.");
+      }
+
+      const newSaleId = sale[0].id;
+      const itemsToInsert = cart.map(item => ({ 
+        sale_id: newSaleId, 
+        product_id: item.product_id, 
+        quantity: item.quantity, 
+        unit_price: item.price 
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('Sale_Items')
+        .insert(itemsToInsert);
+
+      if (itemsError) {
+        // Handmatige rollback: verwijder de zojuist aangemaakte verkoop om wezen te voorkomen
+        await supabase.from('Sales').delete().eq('id', newSaleId);
+        throw new Error("Producten konden niet worden opgeslagen. Ingreep geannuleerd: " + itemsError.message);
+      }
+
+      // Succesvolle afronding
+      setCart([]);
+      setSelectedHospital('');
+      setSelectedSurgeon('');
+      fetchAllData();
+      alert("Opgeslagen!");
+    } catch (error) {
+      alert("Fout bij opslaan: " + error.message);
+    }
   }
 
   if (!session) {
@@ -127,7 +190,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-100 font-sans pb-24">
       <nav className="bg-slate-800 text-white p-4 mb-4 flex justify-between items-center sticky top-0 z-30 shadow-md text-xs font-bold tracking-widest">
-        <h1 onClick={() => setView('dashboard')}>MEDSALES PRO</h1>
+        <h1 onClick={() => setView('dashboard')} className="cursor-pointer">MEDSALES PRO</h1>
         <button onClick={() => supabase.auth.signOut()} className="bg-red-900/30 px-3 py-1 rounded border border-red-500/30">LOG UIT</button>
       </nav>
 
@@ -155,11 +218,8 @@ function App() {
                   {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
                 <div className="flex gap-2">
-                  <input type="number" className="w-16 p-2 border rounded-lg" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-                  <button onClick={() => {
-                    const p = products.find(x => x.id.toString() === selectedProduct);
-                    if(p) setCart([...cart, { product_id: p.id, name: p.name, price: p.price, quantity: parseInt(quantity) }]);
-                  }} className="flex-grow bg-emerald-600 text-white font-bold rounded-lg uppercase text-[10px]">Add</button>
+                  <input type="number" className="w-16 p-2 border rounded-lg" value={quantity} onChange={(e) => setQuantity(e.target.value)} min="1" />
+                  <button onClick={handleAddToCart} className="flex-grow bg-emerald-600 text-white font-bold rounded-lg uppercase text-[10px]">Add</button>
                 </div>
               </div>
 
@@ -212,7 +272,7 @@ function App() {
                         <table className="w-full text-left text-[11px]">
                             <tbody className="divide-y">
                                 {monthSales.map(s => (
-                                    <tr key={s.id} onClick={() => setSelectedSaleDetails(s)} className="hover:bg-gray-50">
+                                    <tr key={s.id} onClick={() => setSelectedSaleDetails(s)} className="hover:bg-gray-50 cursor-pointer">
                                         <td className="p-3 text-gray-400">{s.surgery_date.split('-').reverse().join('/')}</td>
                                         <td className="p-3 font-bold">{s.Hospitals?.name}</td>
                                         <td className="p-3 text-right font-bold">€{s.Sale_Items.reduce((a,b) => a+(b.quantity*b.unit_price),0).toFixed(2)}</td>
